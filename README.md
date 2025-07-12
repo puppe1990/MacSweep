@@ -81,6 +81,7 @@ Options:
   --quick               Quick scan (common locations only)
   --analyze-downloads   Analyze file formats in Downloads folder
   --clean-downloads     Interactive Downloads cleanup with format selection
+  --organize-downloads  Organize Downloads files into separate folders by category
   --no-progress         Disable progress bars for minimal output
   --help                Show help message
 ```
@@ -128,6 +129,12 @@ Perform a quick scan of common system locations with detailed output.
  python3 macsweep.py --analyze-downloads --no-progress
  ```
  Run analysis without progress bars for cleaner output in scripts or automation.
+ 
+ #### 8. Organize Downloads Folder
+ ```bash
+ python3 macsweep.py --organize-downloads
+ ```
+ Automatically organize Downloads files into category-specific folders (Documents, Images, Videos, etc.).
 
 ## Downloads Management
 
@@ -145,6 +152,13 @@ MacSweep includes powerful tools for managing your Downloads folder:
 - **Mixed Selection**: Combine categories and individual formats
 - **Safe Preview**: See exactly what will be deleted before confirming
 - **Size Estimation**: Know how much space will be freed
+
+### 📁 Downloads Organization
+- **Automatic Categorization**: Files are automatically sorted into logical folders
+- **Category Folders**: Documents, Images, Videos, Audio, Archives, Code, Data, Executables, Fonts, Other
+- **Conflict Resolution**: Handles filename conflicts automatically
+- **Progress Tracking**: Real-time progress bar during organization
+- **Detailed Results**: Shows exactly how many files were moved to each category
 
 ### Selection Options
 - **Numbers**: `1,3,5` - Select categories by number

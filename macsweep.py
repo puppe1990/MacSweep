@@ -316,6 +316,96 @@ class FileScanner:
                     collected_files.extend(files)
         
         return collected_files
+    
+    def organize_downloads_files(self, format_analysis: Dict[str, Dict[str, List[Tuple[str, int, datetime]]]], 
+                               downloads_path: str = None, show_progress: bool = True) -> Dict[str, int]:
+        """Organize Downloads files into separate folders by category"""
+        if downloads_path is None:
+            downloads_path = os.path.expanduser("~/Downloads")
+        
+        if not os.path.exists(downloads_path):
+            return {}
+        
+        # Create category folders
+        category_folders = {
+            'documents': 'Documents',
+            'images': 'Images', 
+            'videos': 'Videos',
+            'audio': 'Audio',
+            'archives': 'Archives',
+            'code': 'Code',
+            'data': 'Data',
+            'executables': 'Executables',
+            'fonts': 'Fonts',
+            'other': 'Other'
+        }
+        
+        # Count total files for progress
+        total_files = 0
+        for category, extensions in format_analysis.items():
+            for ext, files in extensions.items():
+                total_files += len(files)
+        
+        if show_progress:
+            progress = ProgressBar(total_files, "Organizing files")
+        else:
+            progress = None
+        
+        organized_stats = {}
+        
+        try:
+            for category, extensions in format_analysis.items():
+                if category not in category_folders:
+                    continue
+                
+                folder_name = category_folders[category]
+                category_path = os.path.join(downloads_path, folder_name)
+                
+                # Create category folder if it doesn't exist
+                if not os.path.exists(category_path):
+                    os.makedirs(category_path)
+                
+                files_moved = 0
+                
+                for ext, files in extensions.items():
+                    for file_path, size, mtime in files:
+                        try:
+                            # Get filename and create destination path
+                            filename = os.path.basename(file_path)
+                            dest_path = os.path.join(category_path, filename)
+                            
+                            # Handle filename conflicts
+                            counter = 1
+                            original_dest = dest_path
+                            while os.path.exists(dest_path):
+                                name, ext_name = os.path.splitext(original_dest)
+                                dest_path = f"{name}_{counter}{ext_name}"
+                                counter += 1
+                            
+                            # Move the file
+                            shutil.move(file_path, dest_path)
+                            files_moved += 1
+                            
+                            # Update progress
+                            if progress:
+                                progress.update()
+                                
+                        except (OSError, IOError) as e:
+                            # Skip files that can't be moved
+                            if progress:
+                                progress.update()
+                            continue
+                
+                organized_stats[category] = files_moved
+        
+        except Exception as e:
+            print(f"Error during organization: {e}")
+        
+        # Finish progress bar
+        if progress:
+            progress.finish()
+        
+        return organized_stats
 
 class CleanupEngine:
     """Handles file cleanup operations"""
@@ -586,6 +676,60 @@ class TerminalUI:
         print(f"📊 SUMMARY: {total_files} files, {self.cleanup_engine.format_size(total_size)} total")
         print("="*80)
     
+    def display_organization_results(self, organized_stats: Dict[str, int]):
+        """Display Downloads organization results"""
+        print("\n" + "="*80)
+        print("📁 DOWNLOADS ORGANIZATION RESULTS")
+        print("="*80)
+        
+        if not organized_stats:
+            print("No files were organized.")
+            return
+        
+        total_files = 0
+        
+        # Category folder names
+        category_names = {
+            'documents': '📄 Documents',
+            'images': '🖼️ Images', 
+            'videos': '🎥 Videos',
+            'audio': '🎵 Audio',
+            'archives': '📦 Archives',
+            'code': '💻 Code',
+            'data': '📊 Data',
+            'executables': '⚙️ Executables',
+            'fonts': '🔤 Fonts',
+            'other': '📁 Other'
+        }
+        
+        print("\nFiles organized by category:")
+        for category, count in organized_stats.items():
+            if count > 0:
+                category_name = category_names.get(category, category.title())
+                print(f"  {category_name}: {count} files")
+                total_files += count
+        
+        print(f"\n" + "="*80)
+        print(f"✅ Total files organized: {total_files}")
+        print("="*80)
+        
+        print("\n📂 Your Downloads folder is now organized!")
+        print("Files have been moved to category-specific folders:")
+        for category, folder_name in {
+            'documents': 'Documents',
+            'images': 'Images', 
+            'videos': 'Videos',
+            'audio': 'Audio',
+            'archives': 'Archives',
+            'code': 'Code',
+            'data': 'Data',
+            'executables': 'Executables',
+            'fonts': 'Fonts',
+            'other': 'Other'
+        }.items():
+            if organized_stats.get(category, 0) > 0:
+                print(f"  📁 {folder_name}/ - {organized_stats[category]} files")
+    
     def select_downloads_formats(self, format_analysis: Dict[str, Dict[str, List[Tuple[str, int, datetime]]]]) -> List[str]:
         """Interactive Downloads format selection for cleanup"""
         print("\n" + "="*80)
@@ -750,6 +894,8 @@ def main():
                        help="Analyze file formats in Downloads folder")
     parser.add_argument("--clean-downloads", action="store_true",
                        help="Interactive Downloads cleanup with format selection")
+    parser.add_argument("--organize-downloads", action="store_true",
+                       help="Organize Downloads files into separate folders by category")
     parser.add_argument("--no-progress", action="store_true",
                        help="Disable progress bars for minimal output")
     
@@ -847,6 +993,72 @@ def main():
                 print("   Run without --dry-run to perform actual cleanup.")
         else:
             print("Downloads cleanup cancelled.")
+        
+        return
+    
+    # Handle Downloads organization
+    if args.organize_downloads:
+        print("\nAnalyzing Downloads folder for organization...")
+        start_time = time.time()
+        
+        format_analysis = scanner.analyze_downloads_formats(show_progress=not args.no_progress)
+        
+        scan_time = time.time() - start_time
+        if not args.no_progress:
+            print(f"Analysis completed in {scan_time:.2f} seconds")
+        
+        if not format_analysis:
+            print("No files found in Downloads folder.")
+            return
+        
+        # Show summary first
+        ui.display_downloads_formats(format_analysis)
+        
+        # Confirm organization
+        print(f"\n{'='*60}")
+        print("ORGANIZE DOWNLOADS FOLDER")
+        print("="*60)
+        print("This will organize your Downloads files into category-specific folders:")
+        print("  📄 Documents/ - PDFs, Word docs, Excel files, etc.")
+        print("  🖼️ Images/ - Photos, graphics, icons, etc.")
+        print("  🎥 Videos/ - Video files, movies, etc.")
+        print("  🎵 Audio/ - Music, podcasts, sound files, etc.")
+        print("  📦 Archives/ - ZIP files, DMGs, compressed files, etc.")
+        print("  💻 Code/ - Source code, scripts, etc.")
+        print("  📊 Data/ - CSV, JSON, databases, etc.")
+        print("  ⚙️ Executables/ - Apps, installers, etc.")
+        print("  🔤 Fonts/ - Font files, etc.")
+        print("  📁 Other/ - Uncategorized files")
+        
+        while True:
+            try:
+                choice = input("\nProceed with organization? (y/N): ").strip().lower()
+                if choice in ['y', 'yes']:
+                    break
+                elif choice in ['n', 'no', '']:
+                    print("Organization cancelled.")
+                    return
+                else:
+                    print("Please enter 'y' or 'n'")
+            except KeyboardInterrupt:
+                print("\nOrganization cancelled.")
+                return
+            except EOFError:
+                print("\nOrganization cancelled.")
+                return
+        
+        # Organize files
+        print("\n📁 Starting Downloads organization...")
+        start_time = time.time()
+        
+        organized_stats = scanner.organize_downloads_files(format_analysis, show_progress=not args.no_progress)
+        
+        organization_time = time.time() - start_time
+        if not args.no_progress:
+            print(f"Organization completed in {organization_time:.2f} seconds")
+        
+        # Display results
+        ui.display_organization_results(organized_stats)
         
         return
     
