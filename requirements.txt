@@ -1,0 +1,14 @@
+# MacSweep - The Ultimate macOS File Cleanup Wizard
+# Dependencies for the MacSweep application
+# This application only uses Python standard library modules
+# No additional packages required
+
+# Optional: For enhanced terminal UI (not required for basic functionality)
+# colorama>=0.4.4
+# rich>=13.0.0
+# click>=8.0.0
+
+# All functionality is implemented using Python standard library:
+# - os, sys, argparse, shutil, time
+# - datetime, pathlib, typing, collections
+# - subprocess (for potential future enhancements) 
