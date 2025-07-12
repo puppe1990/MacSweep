@@ -78,6 +78,7 @@ Options:
   --verbose, -v          Show detailed output during cleanup
   --depth N              Maximum scan depth (default: 3)
   --quick               Quick scan (common locations only)
+  --analyze-downloads   Analyze file formats in Downloads folder
   --help                Show help message
 ```
 
@@ -101,11 +102,17 @@ Scan only the Downloads folder for cleanup candidates.
  ```
 Perform a quick scan of common system locations with detailed output.
 
- #### 4. Deep Scan with Higher Depth
+  #### 4. Deep Scan with Higher Depth
  ```bash
  python3 macsweep.py --depth 5 ~/Documents
  ```
-Scan Documents folder with increased depth limit.
+ Scan Documents folder with increased depth limit.
+ 
+ #### 5. Downloads Format Analysis
+ ```bash
+ python3 macsweep.py --analyze-downloads
+ ```
+ Analyze and categorize all file formats in your Downloads folder with detailed statistics.
 
 ## Interactive Usage
 

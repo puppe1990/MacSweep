@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import List, Dict, Tuple, Optional
 from collections import defaultdict
 import subprocess
+import mimetypes
 
 class FileScanner:
     """Scans directories and identifies files that can be cleaned"""
@@ -28,6 +29,20 @@ class FileScanner:
             'development': ['node_modules', '.git', '__pycache__', '.pytest_cache', '.venv', 'venv'],
             'system': ['Library/Caches', 'Library/Logs', 'Library/Application Support'],
             'browser': ['Library/Safari', 'Library/Application Support/Google/Chrome', 'Library/Application Support/Firefox']
+        }
+        
+        # File format categories for Downloads analysis
+        self.format_categories = {
+            'documents': ['.pdf', '.doc', '.docx', '.txt', '.rtf', '.odt', '.pages', '.key', '.ppt', '.pptx', '.xls', '.xlsx'],
+            'images': ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.svg', '.webp', '.heic', '.raw', '.cr2', '.nef'],
+            'videos': ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm', '.mkv', '.m4v', '.3gp', '.mpg', '.mpeg'],
+            'audio': ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a', '.wma', '.aiff', '.alac'],
+            'archives': ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz', '.dmg', '.iso'],
+            'executables': ['.exe', '.app', '.dmg', '.pkg', '.deb', '.rpm', '.msi', '.bat', '.sh'],
+            'code': ['.py', '.js', '.html', '.css', '.java', '.cpp', '.c', '.php', '.rb', '.go', '.rs', '.swift'],
+            'data': ['.json', '.xml', '.csv', '.sql', '.db', '.sqlite', '.yaml', '.yml', '.toml', '.ini', '.conf'],
+            'fonts': ['.ttf', '.otf', '.woff', '.woff2', '.eot'],
+            'other': []  # For unknown formats
         }
     
     def scan_directory(self, path: str, max_depth: int = 3) -> Dict[str, List[Tuple[str, int, datetime]]]:
@@ -130,6 +145,71 @@ class FileScanner:
         except (OSError, IOError):
             pass
         return total_size
+    
+    def analyze_downloads_formats(self, downloads_path: str = None) -> Dict[str, Dict[str, List[Tuple[str, int, datetime]]]]:
+        """Analyze file formats in Downloads folder and categorize them"""
+        if downloads_path is None:
+            downloads_path = os.path.expanduser("~/Downloads")
+        
+        if not os.path.exists(downloads_path):
+            return {}
+        
+        format_analysis = defaultdict(lambda: defaultdict(list))
+        
+        try:
+            for root, dirs, files in os.walk(downloads_path):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    try:
+                        stat = os.stat(file_path)
+                        size = stat.st_size
+                        mtime = datetime.fromtimestamp(stat.st_mtime)
+                        
+                        # Get file extension
+                        _, ext = os.path.splitext(file.lower())
+                        
+                        # Categorize by format
+                        category = self.categorize_file_format(ext, file_path)
+                        format_analysis[category][ext].append((file_path, size, mtime))
+                        
+                    except (OSError, IOError):
+                        continue
+        except PermissionError:
+            print(f"Permission denied: {downloads_path}")
+        
+        return format_analysis
+    
+    def categorize_file_format(self, extension: str, file_path: str) -> str:
+        """Categorize a file by its format"""
+        # Check if extension matches known categories
+        for category, extensions in self.format_categories.items():
+            if extension in extensions:
+                return category
+        
+        # Try to guess from MIME type for files without extensions
+        if not extension:
+            try:
+                mime_type, _ = mimetypes.guess_type(file_path)
+                if mime_type:
+                    if mime_type.startswith('image/'):
+                        return 'images'
+                    elif mime_type.startswith('video/'):
+                        return 'videos'
+                    elif mime_type.startswith('audio/'):
+                        return 'audio'
+                    elif mime_type.startswith('text/'):
+                        return 'documents'
+                    elif mime_type.startswith('application/'):
+                        if 'pdf' in mime_type:
+                            return 'documents'
+                        elif 'zip' in mime_type or 'rar' in mime_type or '7z' in mime_type:
+                            return 'archives'
+                        else:
+                            return 'other'
+            except:
+                pass
+        
+        return 'other'
 
 class CleanupEngine:
     """Handles file cleanup operations"""
@@ -328,6 +408,77 @@ class TerminalUI:
             except EOFError:
                 print("\nOperation cancelled.")
                 return False
+    
+    def display_downloads_formats(self, format_analysis: Dict[str, Dict[str, List[Tuple[str, int, datetime]]]]):
+        """Display Downloads folder format analysis"""
+        print("\n" + "="*80)
+        print("📁 DOWNLOADS FOLDER FORMAT ANALYSIS")
+        print("="*80)
+        
+        if not format_analysis:
+            print("No files found in Downloads folder.")
+            return
+        
+        total_files = 0
+        total_size = 0
+        
+        # Sort categories by total size
+        category_sizes = {}
+        for category, extensions in format_analysis.items():
+            category_size = 0
+            category_files = 0
+            for ext, files in extensions.items():
+                category_size += sum(size for _, size, _ in files)
+                category_files += len(files)
+            category_sizes[category] = (category_size, category_files)
+            total_size += category_size
+            total_files += category_files
+        
+        # Sort by size (largest first)
+        sorted_categories = sorted(category_sizes.items(), key=lambda x: x[1][0], reverse=True)
+        
+        for category, (category_size, category_files) in sorted_categories:
+            if category_files == 0:
+                continue
+                
+            print(f"\n📂 {category.upper().replace('_', ' ')}:")
+            print(f"   Total: {category_files} files, {self.cleanup_engine.format_size(category_size)}")
+            print("   " + "-" * 60)
+            
+            # Get all extensions for this category
+            extensions = format_analysis[category]
+            sorted_extensions = sorted(extensions.items(), 
+                                     key=lambda x: sum(size for _, size, _ in x[1]), 
+                                     reverse=True)
+            
+            for ext, files in sorted_extensions:
+                if not files:
+                    continue
+                    
+                ext_size = sum(size for _, size, _ in files)
+                ext_count = len(files)
+                
+                print(f"   {ext:>8} | {ext_count:>4} files | {self.cleanup_engine.format_size(ext_size):>10}")
+                
+                # Show sample files for this extension
+                if ext_count <= 3:
+                    for file_path, size, mtime in files:
+                        filename = os.path.basename(file_path)
+                        print(f"           • {filename} ({self.cleanup_engine.format_size(size)})")
+                else:
+                    # Show first 2 and last 1
+                    for file_path, size, mtime in files[:2]:
+                        filename = os.path.basename(file_path)
+                        print(f"           • {filename} ({self.cleanup_engine.format_size(size)})")
+                    print(f"           • ... and {ext_count - 3} more files")
+                    if files:
+                        last_file = files[-1]
+                        filename = os.path.basename(last_file[0])
+                        print(f"           • {filename} ({self.cleanup_engine.format_size(last_file[1])})")
+        
+        print(f"\n" + "="*80)
+        print(f"📊 SUMMARY: {total_files} files, {self.cleanup_engine.format_size(total_size)} total")
+        print("="*80)
 
 def main():
     """Main application entry point"""
@@ -342,6 +493,8 @@ def main():
                        help="Maximum scan depth (default: 3)")
     parser.add_argument("--quick", action="store_true", 
                        help="Quick scan (common locations only)")
+    parser.add_argument("--analyze-downloads", action="store_true",
+                       help="Analyze file formats in Downloads folder")
     
     args = parser.parse_args()
     
@@ -367,6 +520,19 @@ def main():
     ui = TerminalUI()
     ui.cleanup_engine.set_dry_run(args.dry_run)
     ui.cleanup_engine.set_verbose(args.verbose)
+    
+    # Handle Downloads format analysis
+    if args.analyze_downloads:
+        print("\nAnalyzing Downloads folder formats...")
+        start_time = time.time()
+        
+        format_analysis = scanner.analyze_downloads_formats()
+        
+        scan_time = time.time() - start_time
+        print(f"Analysis completed in {scan_time:.2f} seconds")
+        
+        ui.display_downloads_formats(format_analysis)
+        return
     
     # Scan for files
     print("\nScanning for files...")
