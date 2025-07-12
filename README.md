@@ -79,6 +79,7 @@ Options:
   --depth N              Maximum scan depth (default: 3)
   --quick               Quick scan (common locations only)
   --analyze-downloads   Analyze file formats in Downloads folder
+  --clean-downloads     Interactive Downloads cleanup with format selection
   --help                Show help message
 ```
 
@@ -113,6 +114,36 @@ Perform a quick scan of common system locations with detailed output.
  python3 macsweep.py --analyze-downloads
  ```
  Analyze and categorize all file formats in your Downloads folder with detailed statistics.
+ 
+ #### 6. Interactive Downloads Cleanup
+ ```bash
+ python3 macsweep.py --clean-downloads
+ ```
+ Selectively clean Downloads folder by choosing specific file formats or categories to delete.
+
+## Downloads Management
+
+MacSweep includes powerful tools for managing your Downloads folder:
+
+### 📊 Downloads Analysis
+- **Format Categorization**: Automatically groups files by type (documents, images, videos, etc.)
+- **Size Breakdown**: Shows file counts and disk usage for each format
+- **Extension Details**: Lists all file extensions with individual statistics
+- **Sample Files**: Displays example filenames for each category
+
+### 🗑️ Interactive Downloads Cleanup
+- **Category Selection**: Choose entire file categories (e.g., all images, all videos)
+- **Format Selection**: Select specific file extensions (e.g., .mp3, .zip, .pdf)
+- **Mixed Selection**: Combine categories and individual formats
+- **Safe Preview**: See exactly what will be deleted before confirming
+- **Size Estimation**: Know how much space will be freed
+
+### Selection Options
+- **Numbers**: `1,3,5` - Select categories by number
+- **All**: `all` - Select all categories
+- **Formats**: `formats` - Switch to specific extension selection
+- **Category**: `category:images` - Select all extensions in a category
+- **Cancel**: `none` or `quit` - Exit without changes
 
 ## Interactive Usage
 

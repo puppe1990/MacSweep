@@ -210,6 +210,19 @@ class FileScanner:
                 pass
         
         return 'other'
+    
+    def collect_files_by_formats(self, format_analysis: Dict[str, Dict[str, List[Tuple[str, int, datetime]]]], 
+                                selected_formats: List[str]) -> List[Tuple[str, int, datetime]]:
+        """Collect files based on selected formats (categories or extensions)"""
+        collected_files = []
+        
+        for category, extensions in format_analysis.items():
+            for ext, files in extensions.items():
+                # Check if this extension or category is selected
+                if ext in selected_formats or category in selected_formats:
+                    collected_files.extend(files)
+        
+        return collected_files
 
 class CleanupEngine:
     """Handles file cleanup operations"""
@@ -479,6 +492,153 @@ class TerminalUI:
         print(f"\n" + "="*80)
         print(f"📊 SUMMARY: {total_files} files, {self.cleanup_engine.format_size(total_size)} total")
         print("="*80)
+    
+    def select_downloads_formats(self, format_analysis: Dict[str, Dict[str, List[Tuple[str, int, datetime]]]]) -> List[str]:
+        """Interactive Downloads format selection for cleanup"""
+        print("\n" + "="*80)
+        print("🗑️  SELECT DOWNLOADS FORMATS TO CLEAN")
+        print("="*80)
+        
+        if not format_analysis:
+            print("No files found in Downloads folder.")
+            return []
+        
+        # Calculate totals for each category
+        category_totals = {}
+        for category, extensions in format_analysis.items():
+            category_files = []
+            category_size = 0
+            for ext, files in extensions.items():
+                category_files.extend(files)
+                category_size += sum(size for _, size, _ in files)
+            if category_files:
+                category_totals[category] = (category_files, category_size)
+        
+        # Sort categories by size (largest first)
+        sorted_categories = sorted(category_totals.items(), key=lambda x: x[1][1], reverse=True)
+        
+        print("\nAvailable categories:")
+        for i, (category, (files, size)) in enumerate(sorted_categories, 1):
+            print(f"{i}. {category.upper().replace('_', ' ')} ({len(files)} files, {self.cleanup_engine.format_size(size)})")
+        
+        print(f"\nOptions:")
+        print("• Enter numbers separated by commas (e.g., 1,3,5)")
+        print("• Enter 'all' to select all categories")
+        print("• Enter 'none' or 'quit' to exit")
+        print("• Enter 'formats' to select specific file extensions")
+        
+        while True:
+            try:
+                choice = input("\nYour selection: ").strip().lower()
+                
+                if choice in ['none', 'quit', 'q']:
+                    return []
+                
+                if choice == 'all':
+                    return [cat for cat, _ in sorted_categories]
+                
+                if choice == 'formats':
+                    return self.select_specific_formats(format_analysis)
+                
+                # Parse comma-separated numbers
+                selected_indices = []
+                for part in choice.split(','):
+                    part = part.strip()
+                    if part.isdigit():
+                        idx = int(part) - 1
+                        if 0 <= idx < len(sorted_categories):
+                            selected_indices.append(idx)
+                        else:
+                            print(f"Invalid selection: {part}")
+                            break
+                    else:
+                        print(f"Invalid input: {part}")
+                        break
+                else:
+                    # All parts were valid
+                    return [sorted_categories[i][0] for i in selected_indices]
+                
+            except KeyboardInterrupt:
+                print("\nOperation cancelled.")
+                return []
+            except EOFError:
+                print("\nOperation cancelled.")
+                return []
+    
+    def select_specific_formats(self, format_analysis: Dict[str, Dict[str, List[Tuple[str, int, datetime]]]]) -> List[str]:
+        """Select specific file extensions for cleanup"""
+        print("\n" + "="*80)
+        print("📁 SELECT SPECIFIC FILE EXTENSIONS")
+        print("="*80)
+        
+        # Collect all extensions with their info
+        all_extensions = []
+        for category, extensions in format_analysis.items():
+            for ext, files in extensions.items():
+                if files:
+                    total_size = sum(size for _, size, _ in files)
+                    all_extensions.append((ext, len(files), total_size, category))
+        
+        # Sort by size (largest first)
+        all_extensions.sort(key=lambda x: x[2], reverse=True)
+        
+        print(f"\nFound {len(all_extensions)} different file extensions:")
+        for i, (ext, count, size, category) in enumerate(all_extensions, 1):
+            print(f"{i:>3}. {ext:>8} | {count:>4} files | {self.cleanup_engine.format_size(size):>10} | {category}")
+        
+        print(f"\nOptions:")
+        print("• Enter numbers separated by commas (e.g., 1,3,5)")
+        print("• Enter 'all' to select all extensions")
+        print("• Enter 'none' or 'quit' to exit")
+        print("• Enter 'category:name' to select all extensions in a category (e.g., 'category:images')")
+        
+        while True:
+            try:
+                choice = input("\nYour selection: ").strip().lower()
+                
+                if choice in ['none', 'quit', 'q']:
+                    return []
+                
+                if choice == 'all':
+                    return [ext for ext, _, _, _ in all_extensions]
+                
+                if choice.startswith('category:'):
+                    category_name = choice.split(':', 1)[1].strip()
+                    selected_extensions = []
+                    for ext, _, _, category in all_extensions:
+                        if category == category_name:
+                            selected_extensions.append(ext)
+                    if selected_extensions:
+                        print(f"Selected {len(selected_extensions)} extensions from category '{category_name}'")
+                        return selected_extensions
+                    else:
+                        print(f"No extensions found in category '{category_name}'")
+                        continue
+                
+                # Parse comma-separated numbers
+                selected_indices = []
+                for part in choice.split(','):
+                    part = part.strip()
+                    if part.isdigit():
+                        idx = int(part) - 1
+                        if 0 <= idx < len(all_extensions):
+                            selected_indices.append(idx)
+                        else:
+                            print(f"Invalid selection: {part}")
+                            break
+                    else:
+                        print(f"Invalid input: {part}")
+                        break
+                else:
+                    # All parts were valid
+                    return [all_extensions[i][0] for i in selected_indices]
+                
+            except KeyboardInterrupt:
+                print("\nOperation cancelled.")
+                return []
+            except EOFError:
+                print("\nOperation cancelled.")
+                return []
 
 def main():
     """Main application entry point"""
@@ -495,6 +655,8 @@ def main():
                        help="Quick scan (common locations only)")
     parser.add_argument("--analyze-downloads", action="store_true",
                        help="Analyze file formats in Downloads folder")
+    parser.add_argument("--clean-downloads", action="store_true",
+                       help="Interactive Downloads cleanup with format selection")
     
     args = parser.parse_args()
     
@@ -532,6 +694,63 @@ def main():
         print(f"Analysis completed in {scan_time:.2f} seconds")
         
         ui.display_downloads_formats(format_analysis)
+        return
+    
+    # Handle Downloads cleanup with format selection
+    if args.clean_downloads:
+        print("\nAnalyzing Downloads folder for cleanup...")
+        start_time = time.time()
+        
+        format_analysis = scanner.analyze_downloads_formats()
+        
+        scan_time = time.time() - start_time
+        print(f"Analysis completed in {scan_time:.2f} seconds")
+        
+        if not format_analysis:
+            print("No files found in Downloads folder.")
+            return
+        
+        # Show summary first
+        ui.display_downloads_formats(format_analysis)
+        
+        # Interactive format selection
+        selected_formats = ui.select_downloads_formats(format_analysis)
+        
+        if not selected_formats:
+            print("No formats selected. Exiting.")
+            return
+        
+        # Collect files based on selection
+        selected_files = scanner.collect_files_by_formats(format_analysis, selected_formats)
+        
+        if not selected_files:
+            print("No files found matching your selection.")
+            return
+        
+        # Convert to file paths and calculate total size
+        file_paths = [file_path for file_path, _, _ in selected_files]
+        total_size = sum(size for _, size, _ in selected_files)
+        
+        print(f"\nSelected {len(file_paths)} files ({ui.cleanup_engine.format_size(total_size)}) for cleanup")
+        
+        # Confirm and execute cleanup
+        if ui.confirm_cleanup(file_paths, total_size):
+            print("\n🧹 Starting Downloads cleanup...")
+            start_time = time.time()
+            
+            files_removed, bytes_freed = ui.cleanup_engine.cleanup_files(file_paths)
+            
+            cleanup_time = time.time() - start_time
+            print(f"\n✅ Downloads cleanup completed in {cleanup_time:.2f} seconds")
+            print(f"Files removed: {files_removed}")
+            print(f"Space freed: {ui.cleanup_engine.format_size(bytes_freed)}")
+            
+            if args.dry_run:
+                print("\n💡 This was a dry run. No files were actually deleted.")
+                print("   Run without --dry-run to perform actual cleanup.")
+        else:
+            print("Downloads cleanup cancelled.")
+        
         return
     
     # Scan for files
