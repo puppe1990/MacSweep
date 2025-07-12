@@ -15,6 +15,43 @@ from typing import List, Dict, Tuple, Optional
 from collections import defaultdict
 import subprocess
 import mimetypes
+import threading
+import queue
+
+class ProgressBar:
+    """Simple progress bar for terminal output"""
+    
+    def __init__(self, total: int, description: str = "Processing"):
+        self.total = total
+        self.current = 0
+        self.description = description
+        self.start_time = time.time()
+        self.bar_width = 50
+    
+    def update(self, increment: int = 1):
+        """Update progress bar"""
+        self.current += increment
+        percentage = min(100, (self.current / self.total) * 100)
+        
+        # Calculate bar progress
+        filled_width = int(self.bar_width * self.current // self.total)
+        bar = '█' * filled_width + '-' * (self.bar_width - filled_width)
+        
+        # Calculate elapsed time and ETA
+        elapsed = time.time() - self.start_time
+        if self.current > 0:
+            eta = (elapsed / self.current) * (self.total - self.current)
+            eta_str = f"ETA: {eta:.1f}s"
+        else:
+            eta_str = "ETA: --"
+        
+        # Clear line and print progress
+        print(f'\r{self.description}: [{bar}] {percentage:5.1f}% ({self.current}/{self.total}) {eta_str}', end='', flush=True)
+    
+    def finish(self):
+        """Finish progress bar"""
+        elapsed = time.time() - self.start_time
+        print(f'\r{self.description}: [{"█" * self.bar_width}] 100.0% ({self.total}/{self.total}) Completed in {elapsed:.1f}s')
 
 class FileScanner:
     """Scans directories and identifies files that can be cleaned"""
@@ -45,9 +82,35 @@ class FileScanner:
             'other': []  # For unknown formats
         }
     
-    def scan_directory(self, path: str, max_depth: int = 3) -> Dict[str, List[Tuple[str, int, datetime]]]:
+    def count_files(self, path: str, max_depth: int = 3) -> int:
+        """Count total files in directory for progress tracking"""
+        total_files = 0
+        try:
+            for root, dirs, files in os.walk(path):
+                # Limit depth to avoid scanning too deep
+                current_depth = root.replace(path, '').count(os.sep)
+                if current_depth >= max_depth:
+                    dirs[:] = []
+                    continue
+                
+                # Skip hidden and system directories
+                dirs[:] = [d for d in dirs if not d.startswith('.') or d in ['.cache', '.tmp', '.trash', '.Trash']]
+                total_files += len(files)
+        except PermissionError:
+            pass
+        return total_files
+    
+    def scan_directory(self, path: str, max_depth: int = 3, show_progress: bool = True) -> Dict[str, List[Tuple[str, int, datetime]]]:
         """Scan directory and categorize files for cleanup"""
         results = defaultdict(list)
+        
+        # Count files for progress bar
+        if show_progress:
+            print("Counting files for progress tracking...")
+            total_files = self.count_files(path, max_depth)
+            progress = ProgressBar(total_files, "Scanning files")
+        else:
+            progress = None
         
         try:
             for root, dirs, files in os.walk(path):
@@ -72,7 +135,11 @@ class FileScanner:
                         if category:
                             results[category].append((file_path, size, mtime))
                     except (OSError, IOError):
-                        continue
+                        pass
+                    
+                    # Update progress
+                    if progress:
+                        progress.update()
                 
                 # Check for directories that are cleanup candidates
                 for dir_name in dirs:
@@ -88,6 +155,10 @@ class FileScanner:
         
         except PermissionError:
             print(f"Permission denied: {path}")
+        
+        # Finish progress bar
+        if progress:
+            progress.finish()
         
         return results
     
@@ -146,7 +217,7 @@ class FileScanner:
             pass
         return total_size
     
-    def analyze_downloads_formats(self, downloads_path: str = None) -> Dict[str, Dict[str, List[Tuple[str, int, datetime]]]]:
+    def analyze_downloads_formats(self, downloads_path: str = None, show_progress: bool = True) -> Dict[str, Dict[str, List[Tuple[str, int, datetime]]]]:
         """Analyze file formats in Downloads folder and categorize them"""
         if downloads_path is None:
             downloads_path = os.path.expanduser("~/Downloads")
@@ -155,6 +226,20 @@ class FileScanner:
             return {}
         
         format_analysis = defaultdict(lambda: defaultdict(list))
+        
+        # Count files for progress tracking
+        if show_progress:
+            print("Counting Downloads files for progress tracking...")
+            total_files = 0
+            try:
+                for root, dirs, files in os.walk(downloads_path):
+                    total_files += len(files)
+            except PermissionError:
+                pass
+            
+            progress = ProgressBar(total_files, "Analyzing Downloads")
+        else:
+            progress = None
         
         try:
             for root, dirs, files in os.walk(downloads_path):
@@ -173,9 +258,17 @@ class FileScanner:
                         format_analysis[category][ext].append((file_path, size, mtime))
                         
                     except (OSError, IOError):
-                        continue
+                        pass
+                    
+                    # Update progress
+                    if progress:
+                        progress.update()
         except PermissionError:
             print(f"Permission denied: {downloads_path}")
+        
+        # Finish progress bar
+        if progress:
+            progress.finish()
         
         return format_analysis
     
@@ -657,6 +750,8 @@ def main():
                        help="Analyze file formats in Downloads folder")
     parser.add_argument("--clean-downloads", action="store_true",
                        help="Interactive Downloads cleanup with format selection")
+    parser.add_argument("--no-progress", action="store_true",
+                       help="Disable progress bars for minimal output")
     
     args = parser.parse_args()
     
@@ -688,10 +783,11 @@ def main():
         print("\nAnalyzing Downloads folder formats...")
         start_time = time.time()
         
-        format_analysis = scanner.analyze_downloads_formats()
+        format_analysis = scanner.analyze_downloads_formats(show_progress=not args.no_progress)
         
         scan_time = time.time() - start_time
-        print(f"Analysis completed in {scan_time:.2f} seconds")
+        if not args.no_progress:
+            print(f"Analysis completed in {scan_time:.2f} seconds")
         
         ui.display_downloads_formats(format_analysis)
         return
@@ -701,10 +797,11 @@ def main():
         print("\nAnalyzing Downloads folder for cleanup...")
         start_time = time.time()
         
-        format_analysis = scanner.analyze_downloads_formats()
+        format_analysis = scanner.analyze_downloads_formats(show_progress=not args.no_progress)
         
         scan_time = time.time() - start_time
-        print(f"Analysis completed in {scan_time:.2f} seconds")
+        if not args.no_progress:
+            print(f"Analysis completed in {scan_time:.2f} seconds")
         
         if not format_analysis:
             print("No files found in Downloads folder.")
@@ -770,14 +867,15 @@ def main():
         scan_results = defaultdict(list)
         for path in common_paths:
             if os.path.exists(path):
-                results = scanner.scan_directory(path, args.depth)
+                results = scanner.scan_directory(path, args.depth, show_progress=not args.no_progress)
                 for category, files in results.items():
                     scan_results[category].extend(files)
     else:
-        scan_results = scanner.scan_directory(args.path, args.depth)
+        scan_results = scanner.scan_directory(args.path, args.depth, show_progress=not args.no_progress)
     
     scan_time = time.time() - start_time
-    print(f"Scan completed in {scan_time:.2f} seconds")
+    if not args.no_progress:
+        print(f"Scan completed in {scan_time:.2f} seconds")
     
     # Display results
     if not any(scan_results.values()):

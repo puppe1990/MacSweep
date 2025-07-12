@@ -11,6 +11,7 @@ A powerful and intelligent command-line utility for finding and cleaning unneces
 - 🔒 **Safe Operations**: Dry-run mode lets you preview changes before applying them
 - ⚡ **Fast Scanning**: Efficient directory traversal with configurable depth limits
 - 🎨 **Clean Output**: Well-formatted terminal output with progress indicators
+- 📊 **Progress Tracking**: Real-time progress bars with ETA for long operations
 
 ## Categories Detected
 
@@ -80,6 +81,7 @@ Options:
   --quick               Quick scan (common locations only)
   --analyze-downloads   Analyze file formats in Downloads folder
   --clean-downloads     Interactive Downloads cleanup with format selection
+  --no-progress         Disable progress bars for minimal output
   --help                Show help message
 ```
 
@@ -120,6 +122,12 @@ Perform a quick scan of common system locations with detailed output.
  python3 macsweep.py --clean-downloads
  ```
  Selectively clean Downloads folder by choosing specific file formats or categories to delete.
+ 
+ #### 7. Minimal Output Mode
+ ```bash
+ python3 macsweep.py --analyze-downloads --no-progress
+ ```
+ Run analysis without progress bars for cleaner output in scripts or automation.
 
 ## Downloads Management
 
