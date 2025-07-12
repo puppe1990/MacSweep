@@ -534,6 +534,7 @@ class TerminalUI:
         print(f"\nOptions:")
         print("• Enter numbers separated by commas (e.g., 1,3,5)")
         print("• Enter 'all' to select all categories")
+        print("• Enter 'list' to see files in each category")
         print("• Enter 'none' or 'quit' to exit")
         
         while True:
@@ -545,6 +546,10 @@ class TerminalUI:
                 
                 if choice == 'all':
                     return categories
+                
+                if choice == 'list':
+                    self.list_category_files(scan_results, categories)
+                    continue
                 
                 # Parse comma-separated numbers
                 selected_indices = []
@@ -570,6 +575,45 @@ class TerminalUI:
             except EOFError:
                 print("\nOperation cancelled.")
                 return []
+    
+    def list_category_files(self, scan_results: Dict[str, List[Tuple[str, int, datetime]]], categories: List[str]):
+        """List files in each category for user review"""
+        print("\n" + "="*80)
+        print("📁 FILES IN EACH CATEGORY")
+        print("="*80)
+        
+        for i, category in enumerate(categories, 1):
+            if category not in scan_results or not scan_results[category]:
+                continue
+                
+            files = scan_results[category]
+            file_count = len(files)
+            total_size = sum(size for _, size, _ in files)
+            
+            print(f"\n{i}. {category.replace('_', ' ').title()} ({file_count} files, {self.cleanup_engine.format_size(total_size)})")
+            print("-" * 60)
+            
+            # Show sample files (first 5 and last 2 if more than 7)
+            if file_count <= 7:
+                for file_path, size, mtime in files:
+                    filename = os.path.basename(file_path)
+                    print(f"   • {filename} ({self.cleanup_engine.format_size(size)})")
+            else:
+                # Show first 5
+                for file_path, size, mtime in files[:5]:
+                    filename = os.path.basename(file_path)
+                    print(f"   • {filename} ({self.cleanup_engine.format_size(size)})")
+                
+                print(f"   • ... and {file_count - 7} more files ...")
+                
+                # Show last 2
+                for file_path, size, mtime in files[-2:]:
+                    filename = os.path.basename(file_path)
+                    print(f"   • {filename} ({self.cleanup_engine.format_size(size)})")
+        
+        print("\n" + "="*80)
+        print("💡 Tip: Use the numbers above to select categories for cleanup")
+        print("="*80)
     
     def confirm_cleanup(self, selected_files: List[str], total_size: int) -> bool:
         """Confirm cleanup operation"""
@@ -761,6 +805,7 @@ class TerminalUI:
         print(f"\nOptions:")
         print("• Enter numbers separated by commas (e.g., 1,3,5)")
         print("• Enter 'all' to select all categories")
+        print("• Enter 'list' to see files in each category")
         print("• Enter 'none' or 'quit' to exit")
         print("• Enter 'formats' to select specific file extensions")
         
@@ -773,6 +818,10 @@ class TerminalUI:
                 
                 if choice == 'all':
                     return [cat for cat, _ in sorted_categories]
+                
+                if choice == 'list':
+                    self.list_downloads_category_files(format_analysis, sorted_categories)
+                    continue
                 
                 if choice == 'formats':
                     return self.select_specific_formats(format_analysis)
@@ -801,6 +850,41 @@ class TerminalUI:
             except EOFError:
                 print("\nOperation cancelled.")
                 return []
+    
+    def list_downloads_category_files(self, format_analysis: Dict[str, Dict[str, List[Tuple[str, int, datetime]]]], sorted_categories: List[Tuple[str, Tuple[List[Tuple[str, int, datetime]], int]]]):
+        """List files in each Downloads category for user review"""
+        print("\n" + "="*80)
+        print("📁 DOWNLOADS FILES IN EACH CATEGORY")
+        print("="*80)
+        
+        for i, (category, (files, size)) in enumerate(sorted_categories, 1):
+            if not files:
+                continue
+                
+            print(f"\n{i}. {category.upper().replace('_', ' ')} ({len(files)} files, {self.cleanup_engine.format_size(size)})")
+            print("-" * 60)
+            
+            # Show sample files (first 5 and last 2 if more than 7)
+            if len(files) <= 7:
+                for file_path, file_size, mtime in files:
+                    filename = os.path.basename(file_path)
+                    print(f"   • {filename} ({self.cleanup_engine.format_size(file_size)})")
+            else:
+                # Show first 5
+                for file_path, file_size, mtime in files[:5]:
+                    filename = os.path.basename(file_path)
+                    print(f"   • {filename} ({self.cleanup_engine.format_size(file_size)})")
+                
+                print(f"   • ... and {len(files) - 7} more files ...")
+                
+                # Show last 2
+                for file_path, file_size, mtime in files[-2:]:
+                    filename = os.path.basename(file_path)
+                    print(f"   • {filename} ({self.cleanup_engine.format_size(file_size)})")
+        
+        print("\n" + "="*80)
+        print("💡 Tip: Use the numbers above to select categories for cleanup")
+        print("="*80)
     
     def select_specific_formats(self, format_analysis: Dict[str, Dict[str, List[Tuple[str, int, datetime]]]]) -> List[str]:
         """Select specific file extensions for cleanup"""
