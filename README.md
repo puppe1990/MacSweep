@@ -12,6 +12,7 @@ A powerful and intelligent command-line utility for finding and cleaning unneces
 - ⚡ **Fast Scanning**: Efficient directory traversal with configurable depth limits
 - 🎨 **Clean Output**: Well-formatted terminal output with progress indicators
 - 📊 **Progress Tracking**: Real-time progress bars with ETA for long operations
+- 🗑️ **Trash Integration**: Optionally move files to Trash instead of permanent deletion
 
 ## Categories Detected
 
@@ -77,6 +78,7 @@ Arguments:
 Options:
   --dry-run              Show what would be deleted without actually deleting
   --verbose, -v          Show detailed output during cleanup
+  --use-trash           Move files to Trash instead of deleting permanently
   --depth N              Maximum scan depth (default: 3)
   --quick               Quick scan (common locations only)
   --analyze-downloads   Analyze file formats in Downloads folder
@@ -88,11 +90,17 @@ Options:
 
 ### Examples
 
- #### 1. Safe Preview Run
- ```bash
- python3 macsweep.py --dry-run
- ```
+#### 1. Safe Preview Run
+```bash
+python3 macsweep.py --dry-run
+```
 This will show you what files would be deleted without actually deleting them.
+
+ #### 1b. Use Trash for Deletion
+ ```bash
+ python3 macsweep.py --use-trash
+ ```
+ Files will be moved to your macOS Trash instead of being permanently removed.
 
  #### 2. Scan Downloads Folder
  ```bash
