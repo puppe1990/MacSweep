@@ -12,6 +12,7 @@ A powerful and intelligent command-line utility for finding and cleaning unneces
 - ⚡ **Fast Scanning**: Efficient directory traversal with configurable depth limits
 - 🎨 **Clean Output**: Well-formatted terminal output with progress indicators
 - 📊 **Progress Tracking**: Real-time progress bars with ETA for long operations
+- 🖼️ **Optional GUI**: Lightweight Tkinter interface for those who prefer windows
 
 ## Categories Detected
 
@@ -46,6 +47,11 @@ A powerful and intelligent command-line utility for finding and cleaning unneces
 3. **Run the script**:
    ```bash
    python3 macsweep.py
+   ```
+
+4. **Launch the optional GUI**:
+   ```bash
+   python3 macsweep_gui.py
    ```
 
 ## Usage
