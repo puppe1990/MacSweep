@@ -17,6 +17,7 @@ import subprocess
 import mimetypes
 import threading
 import queue
+import hashlib
 
 class ProgressBar:
     """Simple progress bar for terminal output"""
@@ -404,8 +405,65 @@ class FileScanner:
         # Finish progress bar
         if progress:
             progress.finish()
-        
+
         return organized_stats
+
+    def compute_checksum(self, file_path: str, chunk_size: int = 65536) -> Optional[str]:
+        """Compute SHA-256 checksum of a file"""
+        try:
+            hasher = hashlib.sha256()
+            with open(file_path, "rb") as f:
+                for chunk in iter(lambda: f.read(chunk_size), b""):
+                    hasher.update(chunk)
+            return hasher.hexdigest()
+        except (OSError, IOError):
+            return None
+
+    def find_duplicate_files(self, path: str, max_depth: int = 3, show_progress: bool = True) -> Dict[str, List[str]]:
+        """Find duplicate files by checksum"""
+        files_by_size = defaultdict(list)
+
+        if show_progress:
+            total_files = self.count_files(path, max_depth)
+            progress = ProgressBar(total_files, "Scanning for duplicates")
+        else:
+            progress = None
+
+        try:
+            for root, dirs, files in os.walk(path):
+                current_depth = root.replace(path, "").count(os.sep)
+                if current_depth >= max_depth:
+                    dirs[:] = []
+                    continue
+
+                dirs[:] = [d for d in dirs if not d.startswith('.')]
+
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    try:
+                        size = os.path.getsize(file_path)
+                        files_by_size[size].append(file_path)
+                    except (OSError, IOError):
+                        continue
+
+                    if progress:
+                        progress.update()
+        except PermissionError:
+            print(f"Permission denied: {path}")
+
+        if progress:
+            progress.finish()
+
+        duplicates = defaultdict(list)
+        for size, paths in files_by_size.items():
+            if len(paths) < 2:
+                continue
+            for p in paths:
+                checksum = self.compute_checksum(p)
+                if checksum:
+                    duplicates[checksum].append(p)
+
+        return {chk: paths for chk, paths in duplicates.items() if len(paths) > 1}
 
 class CleanupEngine:
     """Handles file cleanup operations"""
@@ -961,6 +1019,78 @@ class TerminalUI:
                 print("\nOperation cancelled.")
                 return []
 
+    def display_duplicates(self, duplicates: Dict[str, List[str]]) -> Tuple[int, int]:
+        """Display summary of duplicate files"""
+        print("\n" + "="*60)
+        print("DUPLICATE FILES")
+        print("="*60)
+
+        if not duplicates:
+            print("No duplicate files found.")
+            return 0, 0
+
+        total_files = sum(len(paths) for paths in duplicates.values())
+        potential_size = 0
+        for paths in duplicates.values():
+            for p in paths[1:]:
+                try:
+                    potential_size += os.path.getsize(p)
+                except OSError:
+                    continue
+
+        print(f"Found {len(duplicates)} duplicate groups ({total_files} files)")
+        print(f"Potential space to free: {self.cleanup_engine.format_size(potential_size)}")
+
+        print("\nSample groups:")
+        shown = 0
+        for checksum, paths in duplicates.items():
+            if shown >= 3:
+                break
+            print(f"\nChecksum: {checksum}")
+            for p in paths:
+                try:
+                    size = os.path.getsize(p)
+                    print(f"  • {p} ({self.cleanup_engine.format_size(size)})")
+                except OSError:
+                    print(f"  • {p}")
+            shown += 1
+
+        if len(duplicates) > 3:
+            print(f"\n... and {len(duplicates) - 3} more groups ...")
+
+        return total_files, potential_size
+
+    def confirm_duplicate_cleanup(self, files: List[str], total_size: int) -> bool:
+        """Confirm removal of duplicate files"""
+        print(f"\n{'='*60}")
+        print("REMOVE DUPLICATES")
+        print("="*60)
+
+        print(f"Duplicate files to remove: {len(files)}")
+        print(f"Space to free: {self.cleanup_engine.format_size(total_size)}")
+
+        print("\nSample files:")
+        for p in files[:10]:
+            print(f"  • {p}")
+        if len(files) > 10:
+            print(f"  ... and {len(files) - 10} more files")
+
+        while True:
+            try:
+                choice = input("\nProceed with removing duplicates? (y/N): ").strip().lower()
+                if choice in ['y', 'yes']:
+                    return True
+                elif choice in ['n', 'no', '']:
+                    return False
+                else:
+                    print("Please enter 'y' or 'n'")
+            except KeyboardInterrupt:
+                print("\nOperation cancelled.")
+                return False
+            except EOFError:
+                print("\nOperation cancelled.")
+                return False
+
 def main():
     """Main application entry point"""
     parser = argparse.ArgumentParser(description="MacSweep - The Ultimate macOS File Cleanup Wizard")
@@ -980,6 +1110,8 @@ def main():
                        help="Interactive Downloads cleanup with format selection")
     parser.add_argument("--organize-downloads", action="store_true",
                        help="Organize Downloads files into separate folders by category")
+    parser.add_argument("--find-duplicates", action="store_true",
+                       help="Find duplicate files using checksums")
     parser.add_argument("--no-progress", action="store_true",
                        help="Disable progress bars for minimal output")
     
@@ -1136,14 +1268,54 @@ def main():
         start_time = time.time()
         
         organized_stats = scanner.organize_downloads_files(format_analysis, show_progress=not args.no_progress)
-        
+
         organization_time = time.time() - start_time
         if not args.no_progress:
             print(f"Organization completed in {organization_time:.2f} seconds")
-        
+
         # Display results
         ui.display_organization_results(organized_stats)
-        
+
+        return
+
+    # Handle duplicate file detection
+    if args.find_duplicates:
+        print("\nScanning for duplicate files...")
+        start_time = time.time()
+
+        duplicates = scanner.find_duplicate_files(args.path, args.depth, show_progress=not args.no_progress)
+
+        scan_time = time.time() - start_time
+        if not args.no_progress:
+            print(f"Scan completed in {scan_time:.2f} seconds")
+
+        total_files, potential_size = ui.display_duplicates(duplicates)
+
+        if not duplicates:
+            return
+
+        # Prepare list of files to remove (keep first file of each group)
+        files_to_remove = []
+        for paths in duplicates.values():
+            files_to_remove.extend(paths[1:])
+
+        if ui.confirm_duplicate_cleanup(files_to_remove, potential_size):
+            print("\n🧹 Removing duplicate files...")
+            start_time = time.time()
+
+            files_removed, bytes_freed = ui.cleanup_engine.cleanup_files(files_to_remove)
+
+            cleanup_time = time.time() - start_time
+            print(f"\n✅ Duplicate cleanup completed in {cleanup_time:.2f} seconds")
+            print(f"Files removed: {files_removed}")
+            print(f"Space freed: {ui.cleanup_engine.format_size(bytes_freed)}")
+
+            if args.dry_run:
+                print("\n💡 This was a dry run. No files were actually deleted.")
+                print("   Run without --dry-run to remove duplicates.")
+        else:
+            print("Duplicate cleanup cancelled.")
+
         return
     
     # Scan for files

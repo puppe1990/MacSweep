@@ -12,6 +12,7 @@ A powerful and intelligent command-line utility for finding and cleaning unneces
 - ⚡ **Fast Scanning**: Efficient directory traversal with configurable depth limits
 - 🎨 **Clean Output**: Well-formatted terminal output with progress indicators
 - 📊 **Progress Tracking**: Real-time progress bars with ETA for long operations
+- 🔗 **Duplicate Detection**: Identify duplicate files using checksums
 
 ## Categories Detected
 
@@ -82,6 +83,7 @@ Options:
   --analyze-downloads   Analyze file formats in Downloads folder
   --clean-downloads     Interactive Downloads cleanup with format selection
   --organize-downloads  Organize Downloads files into separate folders by category
+  --find-duplicates     Identify duplicate files using checksums
   --no-progress         Disable progress bars for minimal output
   --help                Show help message
 ```
@@ -130,11 +132,17 @@ Perform a quick scan of common system locations with detailed output.
  ```
  Run analysis without progress bars for cleaner output in scripts or automation.
  
- #### 8. Organize Downloads Folder
+#### 8. Organize Downloads Folder
+```bash
+python3 macsweep.py --organize-downloads
+```
+Automatically organize Downloads files into category-specific folders (Documents, Images, Videos, etc.).
+
+ #### 9. Find Duplicate Files
  ```bash
- python3 macsweep.py --organize-downloads
+ python3 macsweep.py --find-duplicates ~/Documents
  ```
- Automatically organize Downloads files into category-specific folders (Documents, Images, Videos, etc.).
+ Scan the Documents folder for duplicate files and optionally remove them.
 
 ## Downloads Management
 
