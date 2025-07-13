@@ -409,10 +409,11 @@ class FileScanner:
 
 class CleanupEngine:
     """Handles file cleanup operations"""
-    
+
     def __init__(self):
         self.dry_run = False
         self.verbose = False
+        self.use_trash = False
     
     def set_dry_run(self, dry_run: bool):
         """Set dry run mode"""
@@ -421,6 +422,26 @@ class CleanupEngine:
     def set_verbose(self, verbose: bool):
         """Set verbose mode"""
         self.verbose = verbose
+
+    def set_use_trash(self, use_trash: bool):
+        """Enable or disable moving files to Trash instead of deleting"""
+        self.use_trash = use_trash
+
+    def move_to_trash(self, path: str):
+        """Move a file or directory to the user's Trash"""
+        trash_dir = os.path.expanduser("~/.Trash")
+        if not os.path.exists(trash_dir):
+            os.makedirs(trash_dir)
+
+        base_name = os.path.basename(path)
+        dest_path = os.path.join(trash_dir, base_name)
+        counter = 1
+        while os.path.exists(dest_path):
+            name, ext = os.path.splitext(base_name)
+            dest_path = os.path.join(trash_dir, f"{name}_{counter}{ext}")
+            counter += 1
+
+        shutil.move(path, dest_path)
     
     def cleanup_files(self, files: List[str]) -> Tuple[int, int]:
         """Clean up selected files and return (files_removed, bytes_freed)"""
@@ -432,17 +453,25 @@ class CleanupEngine:
                 if os.path.isfile(file_path):
                     size = os.path.getsize(file_path)
                     if not self.dry_run:
-                        os.remove(file_path)
+                        if self.use_trash:
+                            self.move_to_trash(file_path)
+                        else:
+                            os.remove(file_path)
                     if self.verbose:
-                        print(f"Removed file: {file_path} ({self.format_size(size)})")
+                        action = "Moved to Trash" if self.use_trash and not self.dry_run else "Removed file"
+                        print(f"{action}: {file_path} ({self.format_size(size)})")
                     files_removed += 1
                     bytes_freed += size
                 elif os.path.isdir(file_path):
                     size = self.get_directory_size(file_path)
                     if not self.dry_run:
-                        shutil.rmtree(file_path)
+                        if self.use_trash:
+                            self.move_to_trash(file_path)
+                        else:
+                            shutil.rmtree(file_path)
                     if self.verbose:
-                        print(f"Removed directory: {file_path} ({self.format_size(size)})")
+                        action = "Moved to Trash" if self.use_trash and not self.dry_run else "Removed directory"
+                        print(f"{action}: {file_path} ({self.format_size(size)})")
                     files_removed += 1
                     bytes_freed += size
             except (OSError, IOError) as e:
@@ -968,9 +997,11 @@ def main():
                        help="Path to scan (default: home directory)")
     parser.add_argument("--dry-run", action="store_true", 
                        help="Show what would be deleted without actually deleting")
-    parser.add_argument("--verbose", "-v", action="store_true", 
+    parser.add_argument("--verbose", "-v", action="store_true",
                        help="Show detailed output")
-    parser.add_argument("--depth", type=int, default=3, 
+    parser.add_argument("--use-trash", action="store_true",
+                       help="Move files to Trash instead of deleting permanently")
+    parser.add_argument("--depth", type=int, default=3,
                        help="Maximum scan depth (default: 3)")
     parser.add_argument("--quick", action="store_true", 
                        help="Quick scan (common locations only)")
@@ -1007,6 +1038,7 @@ def main():
     ui = TerminalUI()
     ui.cleanup_engine.set_dry_run(args.dry_run)
     ui.cleanup_engine.set_verbose(args.verbose)
+    ui.cleanup_engine.set_use_trash(args.use_trash)
     
     # Handle Downloads format analysis
     if args.analyze_downloads:
