@@ -18,6 +18,21 @@ import mimetypes
 import threading
 import queue
 
+def send_notification(title: str, message: str):
+    """Send a macOS notification using osascript"""
+    if sys.platform != "darwin":
+        return
+
+    # Escape double quotes in title and message
+    safe_title = title.replace('"', '\\"')
+    safe_message = message.replace('"', '\\"')
+
+    script = f'display notification "{safe_message}" with title "{safe_title}"'
+    try:
+        subprocess.run(["osascript", "-e", script], check=False)
+    except Exception:
+        pass
+
 class ProgressBar:
     """Simple progress bar for terminal output"""
     
@@ -1036,10 +1051,20 @@ def main():
         if not format_analysis:
             print("No files found in Downloads folder.")
             return
-        
+
         # Show summary first
         ui.display_downloads_formats(format_analysis)
-        
+
+        potential_size = 0
+        for exts in format_analysis.values():
+            for files in exts.values():
+                potential_size += sum(size for _, size, _ in files)
+
+        send_notification(
+            "MacSweep Scan Complete",
+            f"Potential cleanup size: {ui.cleanup_engine.format_size(potential_size)}"
+        )
+
         # Interactive format selection
         selected_formats = ui.select_downloads_formats(format_analysis)
         
@@ -1066,12 +1091,17 @@ def main():
             start_time = time.time()
             
             files_removed, bytes_freed = ui.cleanup_engine.cleanup_files(file_paths)
-            
+
             cleanup_time = time.time() - start_time
             print(f"\n✅ Downloads cleanup completed in {cleanup_time:.2f} seconds")
             print(f"Files removed: {files_removed}")
             print(f"Space freed: {ui.cleanup_engine.format_size(bytes_freed)}")
-            
+
+            send_notification(
+                "MacSweep Cleanup Complete",
+                f"Freed {ui.cleanup_engine.format_size(bytes_freed)} from Downloads"
+            )
+
             if args.dry_run:
                 print("\n💡 This was a dry run. No files were actually deleted.")
                 print("   Run without --dry-run to perform actual cleanup.")
@@ -1179,7 +1209,12 @@ def main():
         return
     
     total_files, total_size = ui.display_categories(scan_results)
-    
+
+    send_notification(
+        "MacSweep Scan Complete",
+        f"Potential cleanup size: {ui.cleanup_engine.format_size(total_size)}"
+    )
+
     # Interactive selection
     selected_categories = ui.select_categories(scan_results)
     
@@ -1207,7 +1242,12 @@ def main():
         print(f"\n✅ Cleanup completed in {cleanup_time:.2f} seconds")
         print(f"Files removed: {files_removed}")
         print(f"Space freed: {ui.cleanup_engine.format_size(bytes_freed)}")
-        
+
+        send_notification(
+            "MacSweep Cleanup Complete",
+            f"Freed {ui.cleanup_engine.format_size(bytes_freed)} of disk space"
+        )
+
         if args.dry_run:
             print("\n💡 This was a dry run. No files were actually deleted.")
             print("   Run without --dry-run to perform actual cleanup.")

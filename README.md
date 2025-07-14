@@ -12,6 +12,7 @@ A powerful and intelligent command-line utility for finding and cleaning unneces
 - ⚡ **Fast Scanning**: Efficient directory traversal with configurable depth limits
 - 🎨 **Clean Output**: Well-formatted terminal output with progress indicators
 - 📊 **Progress Tracking**: Real-time progress bars with ETA for long operations
+- 🛎️ **System Notifications**: macOS alerts when scans or cleanups finish
 
 ## Categories Detected
 
