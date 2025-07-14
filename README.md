@@ -12,6 +12,7 @@ A powerful and intelligent command-line utility for finding and cleaning unneces
 - ⚡ **Fast Scanning**: Efficient directory traversal with configurable depth limits
 - 🎨 **Clean Output**: Well-formatted terminal output with progress indicators
 - 📊 **Progress Tracking**: Real-time progress bars with ETA for long operations
+- 📝 **Log File**: Detailed logs of cleanup activity saved to `~/.macsweep.log`
 
 ## Categories Detected
 
@@ -83,6 +84,7 @@ Options:
   --clean-downloads     Interactive Downloads cleanup with format selection
   --organize-downloads  Organize Downloads files into separate folders by category
   --no-progress         Disable progress bars for minimal output
+  --log-file PATH       Write log output to the specified file (default: ~/.macsweep.log)
   --help                Show help message
 ```
 
@@ -190,7 +192,7 @@ When you run the script, you'll see:
 - **Confirmation Prompts**: Always asks before deleting files
 - **Safe Categorization**: Only suggests files that are typically safe to delete
 - **Error Handling**: Gracefully handles permission errors and missing files
-- **Detailed Logging**: Shows exactly what was deleted (in verbose mode)
+- **Detailed Logging**: Logs all cleanup actions to a file for troubleshooting
 
 ## System Requirements
 

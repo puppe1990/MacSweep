@@ -9,6 +9,7 @@ import sys
 import argparse
 import shutil
 import time
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional
@@ -17,6 +18,19 @@ import subprocess
 import mimetypes
 import threading
 import queue
+
+logger = logging.getLogger("MacSweep")
+
+
+def setup_logger(log_file: str):
+    """Configure logging to file"""
+    log_file_path = os.path.expanduser(log_file)
+    logging.basicConfig(
+        filename=log_file_path,
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+    logger.info("Logging initialized")
 
 class ProgressBar:
     """Simple progress bar for terminal output"""
@@ -433,6 +447,9 @@ class CleanupEngine:
                     size = os.path.getsize(file_path)
                     if not self.dry_run:
                         os.remove(file_path)
+                        logger.info(f"Removed file: {file_path} ({self.format_size(size)})")
+                    else:
+                        logger.info(f"[Dry Run] Would remove file: {file_path} ({self.format_size(size)})")
                     if self.verbose:
                         print(f"Removed file: {file_path} ({self.format_size(size)})")
                     files_removed += 1
@@ -441,15 +458,20 @@ class CleanupEngine:
                     size = self.get_directory_size(file_path)
                     if not self.dry_run:
                         shutil.rmtree(file_path)
+                        logger.info(f"Removed directory: {file_path} ({self.format_size(size)})")
+                    else:
+                        logger.info(f"[Dry Run] Would remove directory: {file_path} ({self.format_size(size)})")
                     if self.verbose:
                         print(f"Removed directory: {file_path} ({self.format_size(size)})")
                     files_removed += 1
                     bytes_freed += size
             except (OSError, IOError) as e:
+                logger.error(f"Error removing {file_path}: {e}")
                 if self.verbose:
                     print(f"Error removing {file_path}: {e}")
                 continue
         
+        logger.info(f"Cleanup finished. Files removed: {files_removed}, Space freed: {self.format_size(bytes_freed)}")
         return files_removed, bytes_freed
     
     def get_directory_size(self, path: str) -> int:
@@ -982,8 +1004,14 @@ def main():
                        help="Organize Downloads files into separate folders by category")
     parser.add_argument("--no-progress", action="store_true",
                        help="Disable progress bars for minimal output")
+    parser.add_argument("--log-file", default="~/.macsweep.log",
+                        help="Write detailed log to the specified file (default: ~/.macsweep.log)")
     
     args = parser.parse_args()
+
+    # Initialize logging
+    setup_logger(args.log_file)
+    logger.info("MacSweep started")
     
     # Validate path
     if not os.path.exists(args.path):
@@ -998,9 +1026,11 @@ def main():
     print("="*60)
     print(f"Scanning: {args.path}")
     print(f"Max depth: {args.depth}")
+    logger.info(f"Scanning path: {args.path}, depth: {args.depth}")
     
     if args.dry_run:
         print("🔍 DRY RUN MODE - No files will be deleted")
+        logger.info("Dry run mode enabled")
     
     # Initialize components
     scanner = FileScanner()
@@ -1066,11 +1096,12 @@ def main():
             start_time = time.time()
             
             files_removed, bytes_freed = ui.cleanup_engine.cleanup_files(file_paths)
-            
+
             cleanup_time = time.time() - start_time
             print(f"\n✅ Downloads cleanup completed in {cleanup_time:.2f} seconds")
             print(f"Files removed: {files_removed}")
             print(f"Space freed: {ui.cleanup_engine.format_size(bytes_freed)}")
+            logger.info(f"Downloads cleanup completed in {cleanup_time:.2f}s. Files removed: {files_removed}. Space freed: {ui.cleanup_engine.format_size(bytes_freed)}")
             
             if args.dry_run:
                 print("\n💡 This was a dry run. No files were actually deleted.")
@@ -1136,11 +1167,12 @@ def main():
         start_time = time.time()
         
         organized_stats = scanner.organize_downloads_files(format_analysis, show_progress=not args.no_progress)
-        
+
         organization_time = time.time() - start_time
         if not args.no_progress:
             print(f"Organization completed in {organization_time:.2f} seconds")
-        
+        logger.info(f"Downloads organization completed in {organization_time:.2f}s")
+
         # Display results
         ui.display_organization_results(organized_stats)
         
@@ -1202,11 +1234,12 @@ def main():
         start_time = time.time()
         
         files_removed, bytes_freed = ui.cleanup_engine.cleanup_files(selected_files)
-        
+
         cleanup_time = time.time() - start_time
         print(f"\n✅ Cleanup completed in {cleanup_time:.2f} seconds")
         print(f"Files removed: {files_removed}")
         print(f"Space freed: {ui.cleanup_engine.format_size(bytes_freed)}")
+        logger.info(f"Cleanup completed in {cleanup_time:.2f}s. Files removed: {files_removed}. Space freed: {ui.cleanup_engine.format_size(bytes_freed)}")
         
         if args.dry_run:
             print("\n💡 This was a dry run. No files were actually deleted.")
