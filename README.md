@@ -1,6 +1,6 @@
-# 🧹 MacSweep - The Ultimate macOS File Cleanup Wizard
+# 🧹 MacSweep - The Ultimate File Cleanup Wizard
 
-A powerful and intelligent command-line utility for finding and cleaning unnecessary files on macOS systems. MacSweep transforms your cluttered Mac into a clean, organized workspace with its smart detection algorithms and safe cleanup operations.
+A powerful and intelligent command-line utility for finding and cleaning unnecessary files. Originally built for macOS, MacSweep now includes experimental support for Linux and Windows.
 
 ## ✨ Features
 
@@ -12,6 +12,7 @@ A powerful and intelligent command-line utility for finding and cleaning unneces
 - ⚡ **Fast Scanning**: Efficient directory traversal with configurable depth limits
 - 🎨 **Clean Output**: Well-formatted terminal output with progress indicators
 - 📊 **Progress Tracking**: Real-time progress bars with ETA for long operations
+- 🌐 **Cross-Platform**: Experimental support for Linux and Windows
 
 ## Categories Detected
 
@@ -21,7 +22,7 @@ A powerful and intelligent command-line utility for finding and cleaning unneces
 - **Downloads**: Files in Downloads folder
 - **Trash**: Files in Trash/trash folders
 - **Development**: `node_modules`, `.git`, `__pycache__`, `.venv`, etc.
-- **System**: macOS Library caches and logs
+- **System**: System caches and logs (macOS, Linux, Windows)
 - **Browser**: Safari, Chrome, Firefox cache and data
 - **Large Files**: Files over 100MB
 - **Old Files**: Files older than 30 days
@@ -194,7 +195,7 @@ When you run the script, you'll see:
 
 ## System Requirements
 
-- **macOS**: Designed specifically for macOS file structure
+- **macOS / Linux / Windows**: Works best on macOS but includes experimental support for Linux and Windows
 - **Python 3.6+**: Uses only standard library modules
 - **Permissions**: Some system directories may require admin access
 
@@ -225,6 +226,7 @@ This project is open source and available under the [MIT License](LICENSE).
 
  ## ⚠️ Disclaimer
 
+- Cross-platform features are experimental and may not cover all system locations
 While MacSweep is designed to be safe, always:
 - Run with `--dry-run` first to preview changes
 - Back up important data before running cleanup tools

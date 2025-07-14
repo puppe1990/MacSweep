@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-MacSweep - The Ultimate macOS File Cleanup Wizard
-A comprehensive terminal utility for finding and cleaning unnecessary files on macOS
+MacSweep - The Ultimate File Cleanup Wizard
+Originally built for macOS with experimental support for Linux and Windows.
 """
 
 import os
@@ -81,6 +81,15 @@ class FileScanner:
             'fonts': ['.ttf', '.otf', '.woff', '.woff2', '.eot'],
             'other': []  # For unknown formats
         }
+        platform = sys.platform
+        if platform.startswith("linux"):
+            self.file_types["system"].extend([".cache", "/var/cache", "/var/log", "/tmp"])
+            self.file_types["browser"].extend([".config/google-chrome", ".cache/mozilla", ".mozilla/firefox"])
+            self.file_types["trash"].extend([".local/share/Trash"])
+        elif platform.startswith("win"):
+            self.file_types["system"].extend(["AppData\\Local\\Temp", "AppData\\Local\\Microsoft\\Windows\\Caches"])
+            self.file_types["browser"].extend(["AppData\\Local\\Google\\Chrome", "AppData\\Local\\Mozilla", "AppData\\Local\\Microsoft\\Edge"])
+            self.file_types["trash"].extend(["$Recycle.Bin"])
     
     def count_files(self, path: str, max_depth: int = 3) -> int:
         """Count total files in directory for progress tracking"""
@@ -963,7 +972,7 @@ class TerminalUI:
 
 def main():
     """Main application entry point"""
-    parser = argparse.ArgumentParser(description="MacSweep - The Ultimate macOS File Cleanup Wizard")
+    parser = argparse.ArgumentParser(description="MacSweep - The Ultimate File Cleanup Wizard (experimental Linux/Windows support)")
     parser.add_argument("path", nargs="?", default=os.path.expanduser("~"), 
                        help="Path to scan (default: home directory)")
     parser.add_argument("--dry-run", action="store_true", 
@@ -994,7 +1003,7 @@ def main():
         print(f"Error: Path '{args.path}' is not a directory.")
         sys.exit(1)
     
-    print("🧹 MacSweep - The Ultimate macOS File Cleanup Wizard")
+    print("🧹 MacSweep - The Ultimate File Cleanup Wizard")
     print("="*60)
     print(f"Scanning: {args.path}")
     print(f"Max depth: {args.depth}")
@@ -1152,13 +1161,27 @@ def main():
     
     if args.quick:
         # Quick scan - common cleanup locations
-        common_paths = [
-            os.path.expanduser("~/Library/Caches"),
-            os.path.expanduser("~/Library/Logs"),
-            os.path.expanduser("~/Downloads"),
-            os.path.expanduser("~/.cache"),
-            os.path.expanduser("~/.tmp")
-        ]
+        if sys.platform.startswith("linux"):
+            common_paths = [
+                os.path.expanduser("~/.cache"),
+                os.path.expanduser("~/.local/share/Trash/files"),
+                "/var/log",
+                "/tmp",
+                os.path.expanduser("~/Downloads")
+            ]
+        elif sys.platform.startswith("win"):
+            common_paths = [
+                os.path.join(os.environ.get("LOCALAPPDATA", ""), "Temp"),
+                os.path.join(os.environ.get("USERPROFILE", ""), "Downloads")
+            ]
+        else:
+            common_paths = [
+                os.path.expanduser("~/Library/Caches"),
+                os.path.expanduser("~/Library/Logs"),
+                os.path.expanduser("~/Downloads"),
+                os.path.expanduser("~/.cache"),
+                os.path.expanduser("~/.tmp")
+            ]
         
         scan_results = defaultdict(list)
         for path in common_paths:
