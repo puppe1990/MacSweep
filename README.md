@@ -83,6 +83,11 @@ Options:
   --clean-downloads     Interactive Downloads cleanup with format selection
   --organize-downloads  Organize Downloads files into separate folders by category
   --no-progress         Disable progress bars for minimal output
+  --min-age N           Only include files older than N days
+  --max-age N           Only include files younger than N days
+  --min-size SIZE       Only include files larger than SIZE (e.g., 10M)
+  --max-size SIZE       Only include files smaller than SIZE
+  --pattern PATTERN     Wildcard pattern to match files (can be repeated)
   --help                Show help message
 ```
 
@@ -130,11 +135,17 @@ Perform a quick scan of common system locations with detailed output.
  ```
  Run analysis without progress bars for cleaner output in scripts or automation.
  
- #### 8. Organize Downloads Folder
+#### 8. Organize Downloads Folder
+```bash
+python3 macsweep.py --organize-downloads
+```
+Automatically organize Downloads files into category-specific folders (Documents, Images, Videos, etc.).
+
+ #### 9. Advanced Filtering
  ```bash
- python3 macsweep.py --organize-downloads
+ python3 macsweep.py --min-age 30 --min-size 100M --pattern "*.log" ~/Downloads
  ```
- Automatically organize Downloads files into category-specific folders (Documents, Images, Videos, etc.).
+ Scan your Downloads folder for log files over 100MB that are older than 30 days.
 
 ## Downloads Management
 

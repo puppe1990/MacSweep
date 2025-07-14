@@ -17,6 +17,17 @@ import subprocess
 import mimetypes
 import threading
 import queue
+import fnmatch
+
+def parse_size(size_str: str) -> int:
+    """Parse a human friendly size string (e.g. '10M', '500K')."""
+    units = {'k': 1024, 'm': 1024 ** 2, 'g': 1024 ** 3}
+    s = size_str.strip().lower()
+    if not s:
+        raise ValueError("Size string is empty")
+    if s[-1] in units:
+        return int(float(s[:-1]) * units[s[-1]])
+    return int(float(s))
 
 class ProgressBar:
     """Simple progress bar for terminal output"""
@@ -100,9 +111,12 @@ class FileScanner:
             pass
         return total_files
     
-    def scan_directory(self, path: str, max_depth: int = 3, show_progress: bool = True) -> Dict[str, List[Tuple[str, int, datetime]]]:
+    def scan_directory(self, path: str, max_depth: int = 3, show_progress: bool = True,
+                       collect_all: bool = False) -> Dict[str, List[Tuple[str, int, datetime]]]:
         """Scan directory and categorize files for cleanup"""
         results = defaultdict(list)
+        if collect_all:
+            results['all_files'] = []
         
         # Count files for progress bar
         if show_progress:
@@ -129,7 +143,10 @@ class FileScanner:
                         stat = os.stat(file_path)
                         size = stat.st_size
                         mtime = datetime.fromtimestamp(stat.st_mtime)
-                        
+
+                        if collect_all:
+                            results['all_files'].append((file_path, size, mtime))
+
                         # Categorize files
                         category = self.categorize_file(file_path, file)
                         if category:
@@ -144,6 +161,14 @@ class FileScanner:
                 # Check for directories that are cleanup candidates
                 for dir_name in dirs:
                     dir_path = os.path.join(root, dir_name)
+                    if collect_all:
+                        try:
+                            size = self.get_directory_size(dir_path)
+                            mtime = datetime.fromtimestamp(os.path.getmtime(dir_path))
+                            results['all_files'].append((dir_path, size, mtime))
+                        except (OSError, IOError):
+                            pass
+
                     category = self.categorize_directory(dir_path, dir_name)
                     if category:
                         try:
@@ -216,6 +241,44 @@ class FileScanner:
         except (OSError, IOError):
             pass
         return total_size
+
+    def filter_results(self, scan_results: Dict[str, List[Tuple[str, int, datetime]]],
+                       min_age: Optional[int] = None, max_age: Optional[int] = None,
+                       min_size: Optional[int] = None, max_size: Optional[int] = None,
+                       patterns: Optional[List[str]] = None) -> Dict[str, List[Tuple[str, int, datetime]]]:
+        """Filter scan results by age, size, and wildcard patterns."""
+        filtered = defaultdict(list)
+        now = datetime.now()
+
+        def matches(path: str, size: int, mtime: datetime) -> bool:
+            if min_age is not None and mtime > now - timedelta(days=min_age):
+                return False
+            if max_age is not None and mtime < now - timedelta(days=max_age):
+                return False
+            if min_size is not None and size < min_size:
+                return False
+            if max_size is not None and size > max_size:
+                return False
+            if patterns:
+                for pat in patterns:
+                    if fnmatch.fnmatch(path, pat) or fnmatch.fnmatch(os.path.basename(path), pat):
+                        return True
+                return False
+            return True
+
+        for category, files in scan_results.items():
+            if category == 'all_files':
+                continue
+            for path, size, mtime in files:
+                if matches(path, size, mtime):
+                    filtered[category].append((path, size, mtime))
+
+        if patterns and 'all_files' in scan_results:
+            for path, size, mtime in scan_results['all_files']:
+                if matches(path, size, mtime):
+                    filtered['custom'].append((path, size, mtime))
+
+        return filtered
     
     def analyze_downloads_formats(self, downloads_path: str = None, show_progress: bool = True) -> Dict[str, Dict[str, List[Tuple[str, int, datetime]]]]:
         """Analyze file formats in Downloads folder and categorize them"""
@@ -492,7 +555,7 @@ class TerminalUI:
         total_size = 0
         
         for category, files in scan_results.items():
-            if not files:
+            if category == 'all_files' or not files:
                 continue
             
             category_size = sum(size for _, size, _ in files)
@@ -519,7 +582,7 @@ class TerminalUI:
         print("SELECT CATEGORIES TO CLEAN")
         print("="*60)
         
-        categories = [cat for cat, files in scan_results.items() if files]
+        categories = [cat for cat, files in scan_results.items() if cat != 'all_files' and files]
         
         if not categories:
             print("No files found for cleanup.")
@@ -982,8 +1045,22 @@ def main():
                        help="Organize Downloads files into separate folders by category")
     parser.add_argument("--no-progress", action="store_true",
                        help="Disable progress bars for minimal output")
+    parser.add_argument("--min-age", type=int, default=None,
+                       help="Only include files older than N days")
+    parser.add_argument("--max-age", type=int, default=None,
+                       help="Only include files younger than N days")
+    parser.add_argument("--min-size", type=str, default=None,
+                       help="Only include files larger than SIZE (e.g., 10M)")
+    parser.add_argument("--max-size", type=str, default=None,
+                       help="Only include files smaller than SIZE")
+    parser.add_argument("--pattern", action="append",
+                       help="Wildcard pattern to match files (can be repeated)")
     
     args = parser.parse_args()
+
+    # Convert size strings
+    min_size = parse_size(args.min_size) if args.min_size else None
+    max_size = parse_size(args.max_size) if args.max_size else None
     
     # Validate path
     if not os.path.exists(args.path):
@@ -1163,15 +1240,24 @@ def main():
         scan_results = defaultdict(list)
         for path in common_paths:
             if os.path.exists(path):
-                results = scanner.scan_directory(path, args.depth, show_progress=not args.no_progress)
+                results = scanner.scan_directory(path, args.depth, show_progress=not args.no_progress,
+                                                collect_all=bool(args.pattern))
                 for category, files in results.items():
                     scan_results[category].extend(files)
     else:
-        scan_results = scanner.scan_directory(args.path, args.depth, show_progress=not args.no_progress)
+        scan_results = scanner.scan_directory(args.path, args.depth, show_progress=not args.no_progress,
+                                              collect_all=bool(args.pattern))
     
     scan_time = time.time() - start_time
     if not args.no_progress:
         print(f"Scan completed in {scan_time:.2f} seconds")
+
+    scan_results = scanner.filter_results(scan_results,
+                                          min_age=args.min_age,
+                                          max_age=args.max_age,
+                                          min_size=min_size,
+                                          max_size=max_size,
+                                          patterns=args.pattern)
     
     # Display results
     if not any(scan_results.values()):
